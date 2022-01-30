@@ -1,6 +1,7 @@
 import logging
 import random
 import math
+from turtle import forward
 import numpy as np
 
 # logger initialization
@@ -13,9 +14,10 @@ logger = logging.getLogger(__file__)
 logger.setLevel(logging.INFO)
 logger.addHandler(stream_handler)
 
-print(np.zeros(10))
+
 
 class ReLU:
+
     def __init__(self, debug=logging.ERROR) -> None:
         self.logger = logging.getLogger(__class__.__name__)
         self.logger.setLevel(debug)
@@ -32,19 +34,29 @@ class ReLU:
         self.logger.info(self.sgn_input)
         return self.sgn_input * input_matrix
 
-
+class Flatten:
+    def forward(self, input_matrix):
+        self.shape = input_matrix.shape
+        return np.ndarray.flatten(input_matrix)
+    def backward(self, input_matrix):
+        return np.reshape(input_matrix, self.shape)
+    
+def soft_max(input_matrix):
+    exp = np.exp(input_matrix)
+    sum = np.sum(exp)
+    normalize = exp/sum
+    logger.info(normalize)
+    logger.info(np.sum(normalize))
+    return normalize
 
     
 
-    
-
-r = ReLU(debug=logging.INFO)
-a = np.random.randn(2,2)
-logger.info(a)
-output = r.forward(a)
-logger.info(output)
-output = r.backward(a)
-logger.info(output)
+if __name__ == '__main__':
+    a = np.random.randn(2,2)
+    f = Flatten()
+    logger.info(a)
+    logger.info(f.forward(a))
+    logger.info(f.backward(f.forward(a)))
 
 
 
