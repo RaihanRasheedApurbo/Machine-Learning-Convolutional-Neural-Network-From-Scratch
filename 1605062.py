@@ -99,27 +99,6 @@ class FullConnectedLayer:
         logger.info(y)
         return  y
 
-    # def forward(self, input_matrix):
-
-    #     self.input_matrix = self.flatten.forward(input_matrix) # incase input is not flatten 
-    #     self.logger.info(input_matrix.shape)
-    #     self.logger.info(self.weight_matrix.shape)
-        
-    #     if input_matrix.shape[0] != self.weight_matrix.shape[1]:
-    #         raise 'Full Connected layer error shape mismatch in forward propagation'
-        
-    #     logger.info(self.weight_matrix)
-    #     logger.info(input_matrix)
-        
-    #     wx = np.matmul(self.weight_matrix, input_matrix)
-        
-    #     logger.info(wx)
-    #     logger.info(self.bias_matrix)
-        
-    #     y = wx + self.bias_matrix
-        
-    #     logger.info(y)
-    #     return  y
 
     def backward(self, output_gradiant, learning_rate=1):
         bias_gradient = output_gradiant
@@ -149,36 +128,7 @@ class FullConnectedLayer:
         return self.flatten.backward(input_gradient) # incase input wasn't flattend
 
 
-    # def backward(self, input_matrix, learning_rate=1):
-        
-    #     # converting 1D to 2D
-    #     output_gradiant = input_matrix[np.newaxis].T  
-    #     input_transpose = self.input_matrix[np.newaxis]
-
-    #     bias_gradient = input_matrix
-    #     weight_gradient = np.matmul(output_gradiant, input_transpose)
-    #     input_gradient = np.matmul(self.weight_matrix.T, output_gradiant)
-        
-    #     logger.info(bias_gradient)
-    #     logger.info(weight_gradient)
-    #     logger.info(input_gradient)
-
-    #     logger.info('prev weights')
-    #     logger.info(self.weight_matrix)
-
-    #     logger.info('prev bias')
-    #     logger.info(self.bias_matrix)
-
-    #     self.bias_matrix -= learning_rate * bias_gradient
-    #     self.weight_matrix -= learning_rate * weight_gradient
-
-    #     logger.info('bias')
-    #     logger.info(self.bias_matrix)
-
-    #     logger.info('weights')
-    #     logger.info(self.weight_matrix)
-
-    #     return self.flatten.backward(input_gradient) # incase input wasn't flattend
+    
         
     
 
@@ -207,6 +157,8 @@ if __name__ == '__main__':
 #     logger.info(output)
 #     output = soft_max(output)
 #     logger.info(output)
+
+
 
 
 
