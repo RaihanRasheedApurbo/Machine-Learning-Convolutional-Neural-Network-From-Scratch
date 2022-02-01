@@ -14,6 +14,63 @@ logger = logging.getLogger(__file__)
 logger.setLevel(logging.INFO)
 logger.addHandler(stream_handler)
 
+class Pooling:
+    def __init__(self, height, width, stride, debug=logging.ERROR) -> None:
+        self.height = height
+        self.width = width
+        self.stride = stride
+
+        self.logger = logging.getLogger(__class__.__name__)
+        self.logger.setLevel(debug)
+        self.logger.addHandler(stream_handler)
+    
+    def forward(self, input_matrix):
+        self.logger.info(input_matrix.shape)
+        self.forward_input = input_matrix
+        s = self.stride
+        w = self.width
+        h = self.height
+        f,h1,w1,d = input_matrix.shape
+        h2,w2 = int((h1-h)/s) + 1, int((w1-w)/s) + 1
+        output_matrix = np.zeros((f,h2,w2,d))
+        for i in range(f):
+            for j in range(h2):
+                prev_row_start = j*s
+                prev_row_finish = prev_row_start + h
+                for k in range(w2):
+                    prev_col_start = k*s
+                    prev_col_finish = prev_col_start + w
+                    for l in range(d):
+                        output_matrix[i][j][k][l] = np.max(input_matrix[i,prev_row_start:prev_row_finish,prev_col_start:prev_col_finish,l])
+
+        return output_matrix
+
+    def backward(self, input_matrix):
+        forward_input = self.forward_input
+        f,h1,w1,d = forward_input.shape
+        output_matrix = np.zeros((f,h1,w1,d))
+        f,h2,w2,d = input_matrix.shape
+        h,w,s = self.height, self.width, self.stride
+
+        for i in range(f):
+            for j in range(h2):
+                prev_row_start = j*s
+                prev_row_finish = prev_row_start + h
+                for k in range(w2):
+                    prev_col_start = k*s
+                    prev_col_finish = prev_col_start + w
+                    for l in range(d):
+                        window = forward_input[i,prev_row_start:prev_row_finish,prev_col_start:prev_col_finish,l]
+                        max_v = np.max(window)
+                        mask = (window == max_v)
+
+                        output_matrix[i,prev_row_start:prev_row_finish,prev_col_start:prev_col_finish,l] += mask * input_matrix[i,j,k,l]
+
+        return output_matrix
+
+
+
+
 
 
 class ReLU:
@@ -132,7 +189,6 @@ class FullConnectedLayer:
         
     
 
-
 if __name__ == '__main__':
     
 
@@ -158,13 +214,19 @@ if __name__ == '__main__':
 #     output = soft_max(output)
 #     logger.info(output)
 
-
-
-
-
-
-
-
-
-
+    np.random.seed(1)
     
+    output = np.random.randn(5,5,3,2)
+    p = Pooling(2,2,1)
+    logger.info(output)
+    output = p.forward(output)
+    # logger.info(output.shape)
+    # logger.info(output)
+    output = np.random.randn(5,4,2,2)
+    logger.info(np.mean(output))
+    output = p.backward(output)
+    
+    logger.info(output[1,1])
+
+
+
