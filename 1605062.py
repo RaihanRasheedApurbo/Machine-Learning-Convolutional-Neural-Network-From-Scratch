@@ -68,10 +68,55 @@ class Pooling:
 
         return output_matrix
 
+class Convolution:
+    
+    def __init__(self, height, width, stride, total_filters, color_channels, pad, debug=logging.ERROR) -> None:
+        self.height = height
+        self.width = width
+        self.stride = stride
+        self.total_filters = total_filters
+        self.color_channels = color_channels
+        self.pad = pad
+
+        self.logger = logging.getLogger(__class__.__name__)
+        self.logger.setLevel(debug)
+        self.logger.addHandler(stream_handler)
+
+        self.weight_matrix = np.random.randn(height, width, color_channels, total_filters)
+        self.bias_matrix = np.random.randn(total_filters)
 
 
+    def forward(self, input_matrix):
+        self.forward_input = input_matrix
+        s,p = self.stride, self.pad
+
+        input_matrix_with_pad = np.pad(input_matrix, ((0,0),(p,p),(p,p),(0,0)))
+
+        s1,h1,w1,ch1 = input_matrix.shape
+        h2,w2,ch2,tf2 = self.weight_matrix.shape
+        
+    
+        h3,w3 = int((h1+2*p-h2)/s)+1,int((w1+2*p-w2)/s)+1
+        output_matrix = np.zeros((s1,h3,w3,tf2))
 
 
+        for i in range(s1):
+            for j in range(h3):
+                row_start = j*s
+                row_end = row_start + h2
+                for k in range(w3):
+                    col_start = k*s
+                    col_end = col_start + w2
+                    for l in range(tf2):
+                        arr_slice = input_matrix_with_pad[i,row_start:row_end,col_start:col_end,:]
+                        weight = self.weight_matrix[:,:,:,l]
+                        bias = self.bias_matrix[l]
+                        y = arr_slice * weight
+                        y_sum = np.sum(y)
+
+                        output_matrix[i,j,k,l] = y_sum + bias
+
+        return output_matrix
 
 class ReLU:
 
@@ -214,19 +259,41 @@ if __name__ == '__main__':
 #     output = soft_max(output)
 #     logger.info(output)
 
-    np.random.seed(1)
+    # np.random.seed(1)
     
-    output = np.random.randn(5,5,3,2)
-    p = Pooling(2,2,1)
-    logger.info(output)
-    output = p.forward(output)
+    # output = np.random.randn(1,5,5,3)
+    # logger.info(output)
+    # p = Pooling(2,2,1)
+    # logger.info(output)
+    # output = p.forward(output)
     # logger.info(output.shape)
     # logger.info(output)
-    output = np.random.randn(5,4,2,2)
-    logger.info(np.mean(output))
-    output = p.backward(output)
+    # output = np.random.randn(1,4,4,3)
+    # logger.info((output))
+    # output = p.backward(output)
     
-    logger.info(output[1,1])
+    # logger.info(output)
+
+#             np.random.seed(1)
+# A_prev = np.random.randn(10,5,7,4)
+# W = np.random.randn(3,3,4,8)
+# b = np.random.randn(1,1,1,8)
+# hparameters = {"pad" : 1,
+#                "stride": 2}
+
+# Z, cache_conv = conv_forward(A_prev, W, b, hparameters)
+# print("Z's mean =\n", np.mean(Z))
+# print("Z[3,2,1] =\n", Z[3,2,1])
+# print("cache_conv[0][1][2][3] =\n", cache_conv[0][1][2][3])
+
+    np.random.seed(1)
+    output = np.random.randn(10,5,7,4)
+    c = Convolution(3,3,2,8,4,1)
+    output = c.forward(output)
+    logger.info(np.mean(output))
+    logger.info(output[3,2,1])
+    # logger.info()
+
 
 
 
