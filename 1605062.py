@@ -98,7 +98,7 @@ class Convolution:
     
         h3,w3 = int((h1+2*p-h2)/s)+1,int((w1+2*p-w2)/s)+1
         output_matrix = np.zeros((s1,h3,w3,tf2))
-
+        
 
         for i in range(s1):
             for j in range(h3):
@@ -117,6 +117,44 @@ class Convolution:
                         output_matrix[i,j,k,l] = y_sum + bias
 
         return output_matrix
+
+    def backward(self, input_matrix):
+        forward_input = self.forward_input
+        weight_matrix = self.weight_matrix
+        bias_matrix = self.bias_matrix
+        s,p = self.stride, self.pad
+
+        
+        
+        forward_input_derivative = np.zeros(forward_input.shape)
+        weight_matrix_derivative = np.zeros(weight_matrix.shape)
+        bias_matrix_derivative = np.zeros(bias_matrix.shape)
+
+        forward_input_with_pad = np.pad(forward_input, ((0,0),(p,p),(p,p),(0,0)))
+        forward_input_derivative_with_pad = np.pad(forward_input_derivative, ((0,0),(p,p),(p,p),(0,0)))
+
+        (s1,h1,w1,c1) = input_matrix.shape
+
+        h2,w2,c2,t2 = weight_matrix.shape
+        
+        for i in range(s1):
+            for j in range(h1):
+                row_start = j*s
+                row_end = row_start + h2
+                for k in range(w1):
+                    col_start = k*s
+                    col_end = col_start + w2
+                    for l in range(c1):
+                        bias_matrix_derivative[l] += input_matrix[i,j,k,l]
+                        forward_input_derivative_with_pad[i,row_start:row_end,col_start:col_end,:] += weight_matrix[:,:,:,l] * input_matrix[i,j,k,l]
+
+                        slice_of_forward_input_pad = forward_input_with_pad[i,row_start:row_end,col_start:col_end,:]
+                        weight_matrix_derivative[:,:,:,l] += slice_of_forward_input_pad * input_matrix[i,j,k,l]
+            forward_input_derivative[i,:,:,:] = forward_input_derivative_with_pad[i,p:-p,p:-p:,:]
+
+        return forward_input_derivative, weight_matrix_derivative, bias_matrix_derivative, 
+
+        
 
 class ReLU:
 
@@ -287,12 +325,35 @@ if __name__ == '__main__':
 # print("cache_conv[0][1][2][3] =\n", cache_conv[0][1][2][3])
 
     np.random.seed(1)
-    output = np.random.randn(10,5,7,4)
-    c = Convolution(3,3,2,8,4,1)
+    output = np.random.randn(10,4,4,3)
+    c = Convolution(2,2,2,8,3,2)
     output = c.forward(output)
-    logger.info(np.mean(output))
-    logger.info(output[3,2,1])
+    # logger.info((output))
+    # logger.info(output.shape)
+    # logger.info(output[3,2,1])
     # logger.info()
+    a,b,c = c.backward(output)
+    logger.info(np.mean(a))
+    logger.info(np.mean(b))
+    logger.info(np.mean(c))
+
+
+    # We'll run conv_forward to initialize the 'Z' and 'cache_conv",
+# which we'll use to test the conv_backward function
+# np.random.seed(1)
+# A_prev = np.random.randn(10,4,4,3)
+# W = np.random.randn(2,2,3,8)
+# b = np.random.randn(1,1,1,8)
+# hparameters = {"pad" : 2,
+#                "stride": 2}
+# Z, cache_conv = conv_forward(A_prev, W, b, hparameters)
+
+# # Test conv_backward
+# dA, dW, db = conv_backward(Z, cache_conv)
+# print("dA_mean =", np.mean(dA))
+# print("dW_mean =", np.mean(dW))
+# print("db_mean =", np.mean(db))
+
 
 
 
