@@ -85,6 +85,11 @@ class Convolution:
         self.weight_matrix = np.random.randn(height, width, color_channels, total_filters)
         self.bias_matrix = np.random.randn(total_filters)
 
+        self.bias_matrix = np.zeros(2)
+
+        self.weight_matrix = np.arange(54).reshape((3,3,3,2))
+
+
 
     def forward(self, input_matrix):
         self.forward_input = input_matrix
@@ -118,7 +123,7 @@ class Convolution:
 
         return output_matrix
 
-    def backward(self, input_matrix):
+    def backward(self, input_matrix, learning_rate=1):
         forward_input = self.forward_input
         weight_matrix = self.weight_matrix
         bias_matrix = self.bias_matrix
@@ -152,7 +157,10 @@ class Convolution:
                         weight_matrix_derivative[:,:,:,l] += slice_of_forward_input_pad * input_matrix[i,j,k,l]
             forward_input_derivative[i,:,:,:] = forward_input_derivative_with_pad[i,p:-p,p:-p:,:]
 
-        return forward_input_derivative, weight_matrix_derivative, bias_matrix_derivative, 
+        self.bias_matrix -= learning_rate * bias_matrix_derivative
+        self.weight_matrix -= learning_rate * weight_matrix_derivative
+
+        return forward_input_derivative 
 
         
 
@@ -324,18 +332,18 @@ if __name__ == '__main__':
 # print("Z[3,2,1] =\n", Z[3,2,1])
 # print("cache_conv[0][1][2][3] =\n", cache_conv[0][1][2][3])
 
-    np.random.seed(1)
-    output = np.random.randn(10,4,4,3)
-    c = Convolution(2,2,2,8,3,2)
-    output = c.forward(output)
-    # logger.info((output))
-    # logger.info(output.shape)
-    # logger.info(output[3,2,1])
-    # logger.info()
-    a,b,c = c.backward(output)
-    logger.info(np.mean(a))
-    logger.info(np.mean(b))
-    logger.info(np.mean(c))
+    # np.random.seed(1)
+    # output = np.random.randn(10,4,4,3)
+    # c = Convolution(2,2,2,8,3,2)
+    # output = c.forward(output)
+    # # logger.info((output))
+    # # logger.info(output.shape)
+    # # logger.info(output[3,2,1])
+    # # logger.info()
+    # a,b,c = c.backward(output)
+    # logger.info(np.mean(a))
+    # logger.info(np.mean(b))
+    # logger.info(np.mean(c))
 
 
     # We'll run conv_forward to initialize the 'Z' and 'cache_conv",
@@ -353,6 +361,17 @@ if __name__ == '__main__':
 # print("dA_mean =", np.mean(dA))
 # print("dW_mean =", np.mean(dW))
 # print("db_mean =", np.mean(db))
+    # input_arr = np.arange(75).reshape(1,5,5,3)
+    # c = Convolution(3,3,2,2,3,1)
+    # output = c.forward(input_arr)
+    # logger.info(output)
+    # d_output = np.arange(18).reshape((1,3, 3, 2))
+    # output = c.backward(d_output)
+    # logger.info(output)
+
+
+
+    
 
 
 
