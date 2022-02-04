@@ -11,7 +11,6 @@ formatter = logging.Formatter(
 stream_handler = logging.StreamHandler()
 stream_handler.setFormatter(formatter)
 logger = logging.getLogger(__file__)
-logger.setLevel(logging.INFO)
 logger.addHandler(stream_handler)
 
 class Pooling:
@@ -201,18 +200,23 @@ class Flatten:
 
     def backward(self, input_matrix):
         return np.reshape(input_matrix, self.shape)
-    
-def soft_max(input_matrix):
-    sample_size, prediction = input_matrix.shape
-    arr = []
-    for i in range(sample_size):
 
-        exp = np.exp(input_matrix[i])
-        sum = np.sum(exp)
-        normalize = exp/sum
-        arr.append(normalize)
+class SoftMax:
     
-    return np.array(arr)
+    def __init__(self, debug=logging.ERROR) -> None:
+        self.logger = logging.getLogger(__class__.__name__)
+        self.logger.setLevel(debug)
+        self.logger.addHandler(stream_handler)
+
+    def forward(self, input_matrix):
+        exp = np.exp(input_matrix)
+        sums = np.sum(exp,axis=1)
+        sums = np.reshape(sums,(sums.shape[0],1))
+        return exp/sums
+
+    def backward(self, input_matrix):
+        return input_matrix
+        
 
 class FullConnectedLayer:
     def __init__(self, output_size, debug=logging.ERROR, weight_matrix=None, bias_matrix=None):
@@ -248,6 +252,9 @@ class FullConnectedLayer:
         if not hasattr(self, 'bias_matrix'):
             self.bias_matrix = np.random.randn(self.output_size,1) # 1 for making column matrix
         
+        self.logger.info(self.weight_matrix)
+        self.logger.info(self.bias_matrix)
+
         x = flatten_matrix.T   # making inputs column vectors
         self.input_matrix = x # stroring for backward prop.
 
@@ -297,21 +304,89 @@ class FullConnectedLayer:
         return self.flatten.backward(input_gradient) # incase input wasn't flattend
     
         
-    
 
 if __name__ == '__main__':
     
+    logger.setLevel(logging.INFO)
+
+    file = open('arch.txt','r')
+    layers = []
+    debug = logging.ERROR
+    color_channel = 1
+    for line in file.readlines():
+        words = line.split()
+        logger.info(words)
+        if words[0]=='Conv':
+            height = int(words[2])
+            width = height
+            total_filters = int(words[1])
+            stride = int(words[3])
+            padding = int(words[4])
+            c = Convolution(height,width,stride,total_filters,color_channel,padding,debug)
+            layers.append(c)
+        elif words[0] == 'ReLU':
+            layers.append(ReLU(debug))
+        elif words[0] == 'Pool':
+            height = int(words[1])
+            width = height
+            stride = int(words[2])
+            p = Pooling(height, width, stride, debug)
+            layers.append(p)
+        elif words[0] == 'FC':
+            output_size = int(words[1])
+            fc = FullConnectedLayer(output_size, debug)
+            layers.append(fc)
+        elif words[0] == 'FL':
+            layers.append(Flatten(debug))
+        elif words[0] == 'Softmax':
+            layers.append(SoftMax(debug))
+        else:
+            logger.error('invalid input')
+
+    
+
+     ###### mnist data import test ######
+    from keras.datasets import mnist
+    from matplotlib import pyplot
+    
+    # #loading
+    (train_x, train_y), (test_x, test_y) = mnist.load_data()
+    
+
+
+    # logger.info(test_x[0])
+    # logger.info(test_y[0])
+    validation_x, test_x = np.split(test_x, 2)
+    validation_y, test_y = np.split(test_y, 2)
+
+     #shape of dataset
+    logger.info('X_train: ' + str(train_x.shape))
+    logger.info('Y_train: ' + str(train_y.shape))
+    logger.info('X_test:  '  + str(test_x.shape))
+    logger.info('Y_test:  '  + str(test_y.shape))
+    logger.info('validation_x:  '  + str(validation_x.shape))
+    logger.info('validation_y:  '  + str(validation_y.shape))
+   
+    
+    # #plotting
+    # from matplotlib import pyplot
+    # for i in range(9):  
+    #     pyplot.subplot(330 + 1 + i)
+    #     pyplot.imshow(train_x[i], cmap=pyplot.get_cmap('gray'))
+    #     logger.info(train_y[i])
+    # pyplot.show()
+
 
     ##### fc and relu test #####
 
-    np.random.seed(1)
-    f = FullConnectedLayer(4)
-    output = np.random.randn(2,2,2,3)
-    logger.info(output)
-    output = f.forward(output)
-    logger.info(output)
-    output = f.backward(output)
-    logger.info(output)
+    # np.random.seed(1)
+    # f = FullConnectedLayer(4, debug=logging.INFO)
+    # output = np.random.randn(2,2,2,3)
+    # logger.info(output)
+    # output = f.forward(output)
+    # logger.info(output)
+    # output = f.backward(output)
+    # logger.info(output)
     # r = ReLU()
     # output = r.forward(output)
     # logger.info(output)
@@ -369,25 +444,7 @@ if __name__ == '__main__':
 
 
 
-    ###### mnist data import test ######
-    # from keras.datasets import mnist
-    # from matplotlib import pyplot
-    
-    # #loading
-    # (train_X, train_y), (test_X, test_y) = mnist.load_data()
-    
-    # #shape of dataset
-    # print('X_train: ' + str(train_X.shape))
-    # print('Y_train: ' + str(train_y.shape))
-    # print('X_test:  '  + str(test_X.shape))
-    # print('Y_test:  '  + str(test_y.shape))
-    
-    # #plotting
-    # from matplotlib import pyplot
-    # for i in range(9):  
-    #     pyplot.subplot(330 + 1 + i)
-    #     pyplot.imshow(train_X[i], cmap=pyplot.get_cmap('gray'))
-    # pyplot.show()
+   
 
 
     ##### flatten test #####
@@ -404,7 +461,14 @@ if __name__ == '__main__':
     
 
 
-    
+    ##### soft max test #####
+    # np.random.seed(1)
+    # output = np.random.randn(3,2)
+    # logger.info(output)
+    # s = SoftMax()
+    # output = s.forward(output)
+    # logger.info(output)
+
 
 
 
