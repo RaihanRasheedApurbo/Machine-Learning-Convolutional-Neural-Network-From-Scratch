@@ -134,6 +134,8 @@ class Convolution:
 
         forward_input_with_pad = np.pad(forward_input, ((0,0),(p,p),(p,p),(0,0)))
         forward_input_derivative_with_pad = np.pad(forward_input_derivative, ((0,0),(p,p),(p,p),(0,0)))
+        _,row,col,_ =  forward_input_derivative_with_pad.shape # used for unfold padding later in loop
+
 
         (s1,h1,w1,c1) = input_matrix.shape
 
@@ -152,15 +154,15 @@ class Convolution:
 
                         slice_of_forward_input_pad = forward_input_with_pad[i,row_start:row_end,col_start:col_end,:]
                         weight_matrix_derivative[:,:,:,l] += slice_of_forward_input_pad * input_matrix[i,j,k,l]
-            forward_input_derivative[i,:,:,:] = forward_input_derivative_with_pad[i,p:-p,p:-p:,:]
+            forward_input_derivative[i,:,:,:] = forward_input_derivative_with_pad[i,p:row-p,p:col-p:,:]
         
         # self.logger.info(bias_matrix.shape)
         # self.logger.info(bias_matrix_derivative.shape)
         # self.logger.info(weight_matrix.shape)
         # self.logger.info(weight_matrix_derivative.shape)
 
-        # self.bias_matrix -= learning_rate * bias_matrix_derivative
-        # self.weight_matrix = self.weight_matrix - learning_rate * weight_matrix_derivative # -= operator throws error # details https://techoverflow.net/2019/05/22/how-to-fix-numpy-typeerror-cannot-cast-ufunc-subtract-output-from-dtypefloat64-to-dtypeint64-with-casting-rule-same_kind/
+        self.bias_matrix -= learning_rate * bias_matrix_derivative
+        self.weight_matrix = self.weight_matrix - learning_rate * weight_matrix_derivative # -= operator throws error # details https://techoverflow.net/2019/05/22/how-to-fix-numpy-typeerror-cannot-cast-ufunc-subtract-output-from-dtypefloat64-to-dtypeint64-with-casting-rule-same_kind/
 
         return forward_input_derivative
 
@@ -209,9 +211,12 @@ class SoftMax:
         self.logger.addHandler(stream_handler)
 
     def forward(self, input_matrix):
+        maxs = np.max(input_matrix, axis=0)
+        maxs = np.reshape(maxs,(1,maxs.shape[0]))
+        input_matrix = input_matrix - maxs
         exp = np.exp(input_matrix)
-        sums = np.sum(exp,axis=1)
-        sums = np.reshape(sums,(sums.shape[0],1))
+        sums = np.sum(exp,axis=0)
+        sums = np.reshape(sums,(1,sums.shape[0]))
         return exp/sums
 
     def backward(self, input_matrix):
@@ -271,7 +276,7 @@ class FullConnectedLayer:
         
         y = wx + self.bias_matrix
         
-        logger.info(y)
+        self.logger.info(y)
         return  y
 
 
@@ -309,6 +314,9 @@ if __name__ == '__main__':
     
     logger.setLevel(logging.INFO)
 
+    # a = np.arange(10).reshape((2,5))
+    # b = SoftMax().forward(a)
+    # logger.info(b)
     file = open('arch.txt','r')
     layers = []
     debug = logging.ERROR
@@ -367,6 +375,28 @@ if __name__ == '__main__':
     logger.info('validation_x:  '  + str(validation_x.shape))
     logger.info('validation_y:  '  + str(validation_y.shape))
    
+    test_data_count = len(train_x)
+    batch_size = 32
+    iteration_per_epoch = int(test_data_count/batch_size)
+    total_epoch = 5
+
+    for i in range(total_epoch):
+        for j in range(iteration_per_epoch):
+            
+            random_indices = np.random.choice(test_data_count, batch_size)
+            output = train_x[random_indices] # renaming it output for using in loop
+            if color_channel == 1:
+                a,b,c = output.shape
+                output = np.reshape(output, (a,b,c,1)) # adding another dimension
+            test_this_iteration_y = train_y[random_indices]
+
+            for k in range(len(layers)):
+                logger.info(output.shape)
+                output = layers[k].forward(output)
+            logger.info(output) 
+
+
+
     
     # #plotting
     # from matplotlib import pyplot
