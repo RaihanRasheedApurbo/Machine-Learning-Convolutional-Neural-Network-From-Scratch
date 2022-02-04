@@ -85,9 +85,7 @@ class Convolution:
         self.weight_matrix = np.random.randn(height, width, color_channels, total_filters)
         self.bias_matrix = np.random.randn(total_filters)
 
-        self.bias_matrix = np.zeros(2)
-
-        self.weight_matrix = np.arange(54).reshape((3,3,3,2))
+        
 
 
 
@@ -156,11 +154,16 @@ class Convolution:
                         slice_of_forward_input_pad = forward_input_with_pad[i,row_start:row_end,col_start:col_end,:]
                         weight_matrix_derivative[:,:,:,l] += slice_of_forward_input_pad * input_matrix[i,j,k,l]
             forward_input_derivative[i,:,:,:] = forward_input_derivative_with_pad[i,p:-p,p:-p:,:]
+        
+        # self.logger.info(bias_matrix.shape)
+        # self.logger.info(bias_matrix_derivative.shape)
+        # self.logger.info(weight_matrix.shape)
+        # self.logger.info(weight_matrix_derivative.shape)
 
-        self.bias_matrix -= learning_rate * bias_matrix_derivative
-        self.weight_matrix -= learning_rate * weight_matrix_derivative
+        # self.bias_matrix -= learning_rate * bias_matrix_derivative
+        # self.weight_matrix = self.weight_matrix - learning_rate * weight_matrix_derivative # -= operator throws error # details https://techoverflow.net/2019/05/22/how-to-fix-numpy-typeerror-cannot-cast-ufunc-subtract-output-from-dtypefloat64-to-dtypeint64-with-casting-rule-same_kind/
 
-        return forward_input_derivative 
+        return forward_input_derivative
 
         
 
@@ -191,56 +194,73 @@ class Flatten:
         
     def forward(self, input_matrix):
         self.shape = input_matrix.shape
-        return np.ndarray.flatten(input_matrix)
+        sample_size = self.shape[0]
+        inner_data = self.shape[1]*self.shape[2]*self.shape[3]
+        return np.reshape(input_matrix,(sample_size,inner_data))
+       
 
     def backward(self, input_matrix):
         return np.reshape(input_matrix, self.shape)
     
 def soft_max(input_matrix):
-    exp = np.exp(input_matrix)
-    sum = np.sum(exp)
-    normalize = exp/sum
-    logger.info(normalize)
-    logger.info(np.sum(normalize))
-    return normalize
+    sample_size, prediction = input_matrix.shape
+    arr = []
+    for i in range(sample_size):
+
+        exp = np.exp(input_matrix[i])
+        sum = np.sum(exp)
+        normalize = exp/sum
+        arr.append(normalize)
+    
+    return np.array(arr)
 
 class FullConnectedLayer:
-
-    def __init__(self, input_size, output_size, debug=logging.ERROR, weight_matrix=None, bias_matrix=None):
+    def __init__(self, output_size, debug=logging.ERROR, weight_matrix=None, bias_matrix=None):
         self.logger = logging.getLogger(__class__.__name__)
         self.logger.setLevel(debug)
         self.logger.addHandler(stream_handler)
 
         self.flatten = Flatten() # creating a flatten object if input is not properly flatten
-        
-        if weight_matrix.any():
+        self.output_size = output_size
+
+
+
+        if weight_matrix:
             self.weight_matrix = weight_matrix
-        else:
-            self.weight_matrix = np.random.randn(output_size,input_size)
         
-        if bias_matrix.any():
+        
+        if bias_matrix:
             self.bias_matrix = bias_matrix
-        else:
-            self.bias_matrix = np.random.randn(output_size,1) # 1 for making column matrix
+       
+            
 
     
     def forward(self, input_matrix):
+
+
+
         flatten_matrix = self.flatten.forward(input_matrix)
-        m = flatten_matrix.shape
-        logger.info(m)
-        x = np.reshape(flatten_matrix, (m[0],1)) # 1 for making column matrix instead of 1D array
         
+        sample_size,data_size = flatten_matrix.shape
+
+        if not hasattr(self, 'weight_matrix'):
+            self.weight_matrix = np.random.randn(self.output_size, data_size)
+        if not hasattr(self, 'bias_matrix'):
+            self.bias_matrix = np.random.randn(self.output_size,1) # 1 for making column matrix
+        
+        x = flatten_matrix.T   # making inputs column vectors
+        self.input_matrix = x # stroring for backward prop.
 
         if x.shape[0] != self.weight_matrix.shape[1]:
             raise 'Full Connected layer error shape mismatch in forward propagation'
         
-        logger.info(self.weight_matrix)
-        logger.info(x)
+        self.logger.info(self.weight_matrix)
+        self.logger.info(x)
         wx = np.matmul(self.weight_matrix, x)
-        self.input_matrix = x # stroring for backward prop.
+        
 
-        logger.info(wx)
-        logger.info(self.bias_matrix)
+        self.logger.info(wx)
+        self.logger.info(self.bias_matrix)
         
         y = wx + self.bias_matrix
         
@@ -249,33 +269,32 @@ class FullConnectedLayer:
 
 
     def backward(self, output_gradiant, learning_rate=1):
-        bias_gradient = output_gradiant
+        bias_gradient = np.average(output_gradiant,axis=1) # row matrix
+        bias_gradient = np.reshape(bias_gradient,(bias_gradient.shape[0],1)) # making column matrix again
         weight_gradient = np.matmul(output_gradiant, self.input_matrix.T)
         input_gradient = np.matmul(self.weight_matrix.T, output_gradiant)
+        input_gradient = input_gradient.T  # converting column matrix to row matrix
 
+        self.logger.info(bias_gradient)
+        self.logger.info(weight_gradient)
+        self.logger.info(input_gradient)
 
-        logger.info(bias_gradient)
-        logger.info(weight_gradient)
-        logger.info(input_gradient)
+        self.logger.info('prev weights')
+        self.logger.info(self.weight_matrix)
 
-        logger.info('prev weights')
-        logger.info(self.weight_matrix)
-
-        logger.info('prev bias')
-        logger.info(self.bias_matrix)
+        self.logger.info('prev bias')
+        self.logger.info(self.bias_matrix)
 
         self.bias_matrix -= learning_rate * bias_gradient
         self.weight_matrix -= learning_rate * weight_gradient
 
-        logger.info('bias')
-        logger.info(self.bias_matrix)
+        self.logger.info('bias')
+        self.logger.info(self.bias_matrix)
 
-        logger.info('weights')
-        logger.info(self.weight_matrix)
+        self.logger.info('weights')
+        self.logger.info(self.weight_matrix)
 
         return self.flatten.backward(input_gradient) # incase input wasn't flattend
-
-
     
         
     
@@ -283,27 +302,28 @@ class FullConnectedLayer:
 if __name__ == '__main__':
     
 
-#     weight = np.array([[ 1.4401747,   0.72498046, -0.05727674],
-#  [-1.15246919, -0.39990891,  0.44136903],
-#  [ 1.14171484, -1.41891945,  0.73059128],
-#  [ 0.60664542, -0.08249916, -1.05893566]])
-#     bias = np.array([[-0.64243089], [0.51146315], [-0.17120088], [1.10775354]])
+    ##### fc and relu test #####
 
-#     f = FullConnectedLayer(3,4,debug=logging.INFO, weight_matrix=weight, bias_matrix=bias)
-#     output = np.random.randn(2,2)
-#     output = np.array([ [0.83351854], [-0.55429203],  [0.0702855] ])
-#     logger.info(output)
-#     output = f.forward(output)
-#     logger.info(output)
-#     output = f.backward(output)
-#     logger.info(output)
-#     r = ReLU()
-#     output = r.forward(output)
-#     logger.info(output)
-#     output = r.backward(output)
-#     logger.info(output)
-#     output = soft_max(output)
-#     logger.info(output)
+    np.random.seed(1)
+    f = FullConnectedLayer(4)
+    output = np.random.randn(2,2,2,3)
+    logger.info(output)
+    output = f.forward(output)
+    logger.info(output)
+    output = f.backward(output)
+    logger.info(output)
+    # r = ReLU()
+    # output = r.forward(output)
+    # logger.info(output)
+    # output = r.backward(output)
+    # logger.info(output)
+
+
+
+
+    ##### soft max test #####
+    # output = soft_max(output)
+    # logger.info(output)
 
     # np.random.seed(1)
     
@@ -320,55 +340,68 @@ if __name__ == '__main__':
     
     # logger.info(output)
 
-#             np.random.seed(1)
-# A_prev = np.random.randn(10,5,7,4)
-# W = np.random.randn(3,3,4,8)
-# b = np.random.randn(1,1,1,8)
-# hparameters = {"pad" : 1,
-#                "stride": 2}
 
-# Z, cache_conv = conv_forward(A_prev, W, b, hparameters)
-# print("Z's mean =\n", np.mean(Z))
-# print("Z[3,2,1] =\n", Z[3,2,1])
-# print("cache_conv[0][1][2][3] =\n", cache_conv[0][1][2][3])
+   
+
+    ### convolution forward test #####
+    # np.random.seed(1)
+    # output = np.random.randn(10,5,7,4)
+    # c = Convolution(3,3,2,8,4,1,debug=logging.INFO)
+    # output = c.forward(output)
+    # logger.info(np.mean(output))  # expected 0.6923608807576933
+
+
+    #### convolution backward test #####
+
 
     # np.random.seed(1)
     # output = np.random.randn(10,4,4,3)
-    # c = Convolution(2,2,2,8,3,2)
+    # c = Convolution(2,2,2,8,3,2,debug=logging.INFO)
     # output = c.forward(output)
-    # # logger.info((output))
-    # # logger.info(output.shape)
-    # # logger.info(output[3,2,1])
-    # # logger.info()
-    # a,b,c = c.backward(output)
-    # logger.info(np.mean(a))
-    # logger.info(np.mean(b))
-    # logger.info(np.mean(c))
+    
+    # a = c.backward(output)
+    # logger.info(np.mean(a))   # expected 1.4524377775388075
+    # # logger.info(np.mean(b))
+    # # logger.info(np.mean(c))
 
 
-    # We'll run conv_forward to initialize the 'Z' and 'cache_conv",
-# which we'll use to test the conv_backward function
-# np.random.seed(1)
-# A_prev = np.random.randn(10,4,4,3)
-# W = np.random.randn(2,2,3,8)
-# b = np.random.randn(1,1,1,8)
-# hparameters = {"pad" : 2,
-#                "stride": 2}
-# Z, cache_conv = conv_forward(A_prev, W, b, hparameters)
+   
 
-# # Test conv_backward
-# dA, dW, db = conv_backward(Z, cache_conv)
-# print("dA_mean =", np.mean(dA))
-# print("dW_mean =", np.mean(dW))
-# print("db_mean =", np.mean(db))
-    # input_arr = np.arange(75).reshape(1,5,5,3)
-    # c = Convolution(3,3,2,2,3,1)
-    # output = c.forward(input_arr)
-    # logger.info(output)
-    # d_output = np.arange(18).reshape((1,3, 3, 2))
-    # output = c.backward(d_output)
-    # logger.info(output)
 
+
+    ###### mnist data import test ######
+    # from keras.datasets import mnist
+    # from matplotlib import pyplot
+    
+    # #loading
+    # (train_X, train_y), (test_X, test_y) = mnist.load_data()
+    
+    # #shape of dataset
+    # print('X_train: ' + str(train_X.shape))
+    # print('Y_train: ' + str(train_y.shape))
+    # print('X_test:  '  + str(test_X.shape))
+    # print('Y_test:  '  + str(test_y.shape))
+    
+    # #plotting
+    # from matplotlib import pyplot
+    # for i in range(9):  
+    #     pyplot.subplot(330 + 1 + i)
+    #     pyplot.imshow(train_X[i], cmap=pyplot.get_cmap('gray'))
+    # pyplot.show()
+
+
+    ##### flatten test #####
+    # np.random.seed(1)
+    # output = np.random.randn(2,28,28,3)
+    # a = output
+    # logger.info(output.shape)
+    # f = Flatten()
+    # output = f.forward(output)
+    # logger.info(output.shape)
+    # output = f.backward(output)
+    # logger.info(output.shape)
+    # logger.info(np.sum(a==output)==2*28*28*3)
+    
 
 
     
