@@ -1,8 +1,12 @@
 import logging
 import random
 import math
-from turtle import forward
+from tkinter import N
 import numpy as np
+
+from sklearn.metrics import log_loss
+from sklearn.metrics import f1_score
+from sklearn.metrics import accuracy_score
 
 # logger initialization
 formatter = logging.Formatter(
@@ -44,7 +48,7 @@ class Pooling:
 
         return output_matrix
 
-    def backward(self, input_matrix):
+    def backward(self, input_matrix, learning_rate=0.001):
         forward_input = self.forward_input
         f,h1,w1,d = forward_input.shape
         output_matrix = np.zeros((f,h1,w1,d))
@@ -69,20 +73,18 @@ class Pooling:
 
 class Convolution:
     
-    def __init__(self, height, width, stride, total_filters, color_channels, pad, debug=logging.ERROR) -> None:
+    def __init__(self, height, width, stride, total_filters, pad, debug=logging.ERROR) -> None:
         self.height = height
         self.width = width
         self.stride = stride
         self.total_filters = total_filters
-        self.color_channels = color_channels
         self.pad = pad
 
         self.logger = logging.getLogger(__class__.__name__)
         self.logger.setLevel(debug)
         self.logger.addHandler(stream_handler)
 
-        self.weight_matrix = np.random.randn(height, width, color_channels, total_filters)
-        self.bias_matrix = np.random.randn(total_filters)
+        
 
         
 
@@ -92,9 +94,18 @@ class Convolution:
         self.forward_input = input_matrix
         s,p = self.stride, self.pad
 
-        input_matrix_with_pad = np.pad(input_matrix, ((0,0),(p,p),(p,p),(0,0)))
-
         s1,h1,w1,ch1 = input_matrix.shape
+        input_matrix_with_pad = np.pad(input_matrix, ((0,0),(p,p),(p,p),(0,0)))
+        
+        
+        if not hasattr(self, 'weight_matrix'):
+            self.weight_matrix = np.random.randn(self.height, self.width, ch1, self.total_filters)
+        if not hasattr(self, 'bias_matrix'):
+            self.bias_matrix = np.random.randn(self.total_filters)
+
+        
+
+        
         h2,w2,ch2,tf2 = self.weight_matrix.shape
         
     
@@ -120,7 +131,7 @@ class Convolution:
 
         return output_matrix
 
-    def backward(self, input_matrix, learning_rate=1):
+    def backward(self, input_matrix, learning_rate=0.001):
         forward_input = self.forward_input
         weight_matrix = self.weight_matrix
         bias_matrix = self.bias_matrix
@@ -154,7 +165,7 @@ class Convolution:
 
                         slice_of_forward_input_pad = forward_input_with_pad[i,row_start:row_end,col_start:col_end,:]
                         weight_matrix_derivative[:,:,:,l] += slice_of_forward_input_pad * input_matrix[i,j,k,l]
-            forward_input_derivative[i,:,:,:] = forward_input_derivative_with_pad[i,p:row-p,p:col-p:,:]
+            forward_input_derivative[i,:,:,:] = forward_input_derivative_with_pad[i,p:row-p,p:col-p,:]
         
         # self.logger.info(bias_matrix.shape)
         # self.logger.info(bias_matrix_derivative.shape)
@@ -182,7 +193,7 @@ class ReLU:
         self.sgn_input = sgn_input
         return input_matrix * sgn_input
     
-    def backward(self, input_matrix):
+    def backward(self, input_matrix, learning_rate=0.001):
         self.logger.info(self.sgn_input)
         return self.sgn_input * input_matrix
 
@@ -200,7 +211,7 @@ class Flatten:
         return np.reshape(input_matrix,(sample_size,inner_data))
        
 
-    def backward(self, input_matrix):
+    def backward(self, input_matrix, learning_rate=0.001):
         return np.reshape(input_matrix, self.shape)
 
 class SoftMax:
@@ -219,7 +230,7 @@ class SoftMax:
         sums = np.reshape(sums,(1,sums.shape[0]))
         return exp/sums
 
-    def backward(self, input_matrix):
+    def backward(self, input_matrix, learning_rate=0.001):
         return input_matrix
         
 
@@ -280,7 +291,7 @@ class FullConnectedLayer:
         return  y
 
 
-    def backward(self, output_gradiant, learning_rate=1):
+    def backward(self, output_gradiant, learning_rate=0.001):
         bias_gradient = np.average(output_gradiant,axis=1) # row matrix
         bias_gradient = np.reshape(bias_gradient,(bias_gradient.shape[0],1)) # making column matrix again
         weight_gradient = np.matmul(output_gradiant, self.input_matrix.T)
@@ -312,15 +323,15 @@ class FullConnectedLayer:
 
 if __name__ == '__main__':
     
-    logger.setLevel(logging.INFO)
-
-    # a = np.arange(10).reshape((2,5))
-    # b = SoftMax().forward(a)
-    # logger.info(b)
+    logger.setLevel(logging.WARNING)
+    np.random.seed(1) # for reproducible training
+    
     file = open('arch.txt','r')
     layers = []
     debug = logging.ERROR
-    color_channel = 1
+    
+    
+
     for line in file.readlines():
         words = line.split()
         logger.info(words)
@@ -330,7 +341,7 @@ if __name__ == '__main__':
             total_filters = int(words[1])
             stride = int(words[3])
             padding = int(words[4])
-            c = Convolution(height,width,stride,total_filters,color_channel,padding,debug)
+            c = Convolution(height,width,stride,total_filters,padding,debug)
             layers.append(c)
         elif words[0] == 'ReLU':
             layers.append(ReLU(debug))
@@ -355,12 +366,21 @@ if __name__ == '__main__':
 
      ###### mnist data import test ######
     from keras.datasets import mnist
+    from keras.datasets import cifar10
     from matplotlib import pyplot
+    from tensorflow.keras.utils import to_categorical # for one hot encoding
     
-    # #loading
-    (train_x, train_y), (test_x, test_y) = mnist.load_data()
-    
+    model = 2
+    color_channel = 3
 
+    # #loading
+    if model == 1:
+        (train_x, train_y), (test_x, test_y) = mnist.load_data()
+    else:
+        (train_x, train_y), (test_x, test_y) = cifar10.load_data()
+
+    max_pixel = 255
+    train_x, test_x = train_x/max_pixel, test_x/max_pixel
 
     # logger.info(test_x[0])
     # logger.info(test_y[0])
@@ -374,14 +394,19 @@ if __name__ == '__main__':
     logger.info('Y_test:  '  + str(test_y.shape))
     logger.info('validation_x:  '  + str(validation_x.shape))
     logger.info('validation_y:  '  + str(validation_y.shape))
-   
+    
+    sub_sample_ratio = 100
     test_data_count = len(train_x)
     batch_size = 32
     iteration_per_epoch = int(test_data_count/batch_size)
+    iteration_per_epoch = int(iteration_per_epoch/sub_sample_ratio)
     total_epoch = 5
+    learning_rate = 0.1
+
+    output_class = 10 # total probable posibility of output of an input
 
     for i in range(total_epoch):
-        for j in range(iteration_per_epoch):
+        for j in range(25):
             
             random_indices = np.random.choice(test_data_count, batch_size)
             output = train_x[random_indices] # renaming it output for using in loop
@@ -389,11 +414,66 @@ if __name__ == '__main__':
                 a,b,c = output.shape
                 output = np.reshape(output, (a,b,c,1)) # adding another dimension
             test_this_iteration_y = train_y[random_indices]
+            y_encode = to_categorical(test_this_iteration_y, num_classes= output_class, dtype="int").T
+            layer_size = len(layers)
 
-            for k in range(len(layers)):
+            for k in range(layer_size):
                 logger.info(output.shape)
                 output = layers[k].forward(output)
-            logger.info(output) 
+            
+
+            output = output-y_encode # error dericative dE/dY
+
+            for k in range(-1,-(layer_size+1),-1):
+                logger.info(output.shape)
+                output = layers[k].backward(output,learning_rate)
+            logger.info(output.shape)
+            # print(i,j)
+            if j%10==0:
+                print(i,j)
+
+        
+        
+        validation_batch_size = 1000
+        validation_data_count = len(validation_x)
+        random_indices = np.random.choice(validation_data_count, validation_batch_size)
+        output = validation_x[random_indices] # renaming it output for using in loop
+        if color_channel == 1:
+            a,b,c = output.shape
+            output = np.reshape(output, (a,b,c,1)) # adding another dimension
+        validation_samples_y = validation_y[random_indices]
+        # y_encode = to_categorical(validation_samples_y, num_classes= output_class, dtype="int").T
+        layer_size = len(layers)
+
+        for k in range(layer_size):
+            logger.info(output.shape)
+            output = layers[k].forward(output)
+        
+        probabilities = output
+        output = np.argmax(output, axis=0)  # predicted labels
+        # print(len(output), len(validation_samples_y))
+
+        
+        f1 = f1_score(validation_samples_y, output, average='macro')
+        print(f1)
+        
+        a1 = accuracy_score(validation_samples_y, output)
+        # print(np.sum(validation_samples_y==output))
+        print(a1)
+
+        
+        # print(validation_samples_y.shape, probabilities.T.shape)
+        e1 = log_loss(validation_samples_y, probabilities.T)
+        print(e1)
+
+    
+    logger.warning("completed")
+    
+
+
+
+
+
 
 
 
@@ -451,7 +531,7 @@ if __name__ == '__main__':
     ### convolution forward test #####
     # np.random.seed(1)
     # output = np.random.randn(10,5,7,4)
-    # c = Convolution(3,3,2,8,4,1,debug=logging.INFO)
+    # c = Convolution(3,3,2,8,1,debug=logging.INFO)
     # output = c.forward(output)
     # logger.info(np.mean(output))  # expected 0.6923608807576933
 
@@ -461,7 +541,7 @@ if __name__ == '__main__':
 
     # np.random.seed(1)
     # output = np.random.randn(10,4,4,3)
-    # c = Convolution(2,2,2,8,3,2,debug=logging.INFO)
+    # c = Convolution(2,2,2,8,2,debug=logging.INFO)
     # output = c.forward(output)
     
     # a = c.backward(output)
@@ -469,9 +549,34 @@ if __name__ == '__main__':
     # # logger.info(np.mean(b))
     # # logger.info(np.mean(c))
 
+    #### polling layer test ######
+
+    # np.random.seed(1)
+    # output = np.random.randn(2,5,5,3)
+    # p = Pooling(3,3,1)
+    # output = p.forward(output)
+    # logger.info(output.shape)
+    # logger.info(output)  # first row [[[[ 1.74481176  0.90159072  1.65980218] # last row [ 1.62765075  1.12141771  0.79280687]]]]
+                                                                               
+    ##### another polling test #####
+    # np.random.seed(1)
+    # output = np.random.randn(2,5,5,3)
+    # p = Pooling(3,3,2)
+    # output = p.forward(output)
+    # logger.info(output.shape)
+    # logger.info(output)  # first row [[[[1.74481176 0.90159072 1.65980218] # last row [ 1.62765075  1.12141771  0.79280687]]]]
 
    
+    #### polling backward test #####
 
+    # np.random.seed(1)
+    # output = np.random.randn(5,5,3,2)
+    # p = Pooling(2,2,1)
+    # output = p.forward(output)
+    # d1 = np.random.randn(5,4,2,2)
+
+    # output = p.backward(d1)
+    # logger.info(output[1,1])
 
 
    
@@ -498,6 +603,10 @@ if __name__ == '__main__':
     # s = SoftMax()
     # output = s.forward(output)
     # logger.info(output)
+    #### another soft max test #####
+    # a = np.arange(10).reshape((2,5))
+    # b = SoftMax().forward(a)
+    # logger.info(b)
 
 
 
